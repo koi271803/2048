@@ -6,29 +6,30 @@
 
 class Grid {
 private:
-    // Quản lý mảng 2 chiều 4x4 chứa các con trỏ Tile
-    Tile* board[4][4];
+    std::vector<std::vector<Tile*>> board;
+    int gridSize;
     int score;
     bool isGameOver;
 
-    // Các hàm tiện ích dùng nội bộ (Đóng gói)
+    // Các hàm nội bộ không cho bên ngoài gọi (Tính Đóng gói)
     void spawnRandomTile();
-    bool canMove();
+    void pushLine(std::vector<int>& line); // Dựa trên hàm push trong ảnh của bạn
 
 public:
-    Grid();
+    Grid(int size);
     ~Grid();
 
-    // Các hàm nhận lệnh từ UI truyền vào
+    // Các thao tác điều khiển
     void shiftLeft();
     void shiftRight();
     void shiftUp();
     void shiftDown();
 
-    // Các hàm để UI lấy dữ liệu ra vẽ màn hình
+    // Các hàm để UI lấy dữ liệu hiển thị
     int getScore() const;
-    bool checkGameOver() const;
+    bool checkGameOver();
     int getTileValue(int row, int col) const;
+    int getSize() const;
 };
 
 #endif // GRID_H
