@@ -12,7 +12,7 @@ private:
     bool isGameOver;
 
     // Các hàm nội bộ không cho bên ngoài gọi (Tính Đóng gói)
-    void spawnRandomTile();
+virtual void spawnRandomTile();
     void pushLine(std::vector<int>& line); // Dựa trên hàm push trong ảnh của bạn
 
 public:
