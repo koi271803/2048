@@ -1,6 +1,6 @@
 #include "Grid.h"
 #include <cstdlib>
-#include <ctime>   // Thư viện hỗ trợ lấy thời gian thực của hệ thống
+#include <ctime>   
 #include <vector>
 
 // ==============================================================================
@@ -10,22 +10,28 @@ Grid::Grid(int size) {
     this->gridSize = size;
     this->score = 0;
     
-    // Thiết lập hạt giống (seed) cho hàm random dựa trên thời gian thực.
-    // Điều này đảm bảo mỗi lần chạy game, các số sinh ra sẽ hoàn toàn ngẫu nhiên.
-    // Ép kiểu (unsigned int) để tránh cảnh báo mất mát dữ liệu của C++.
+    // Khởi tạo số lượng Power-ups mặc định khi New Game
+    undoCount = 2; // Cho sẵn 2 lượt Undo lúc bắt đầu
+    swapCount = 0;
+    deleteCount = 0;
+    canUndo = false;
+    prevScore = 0;
+    
     srand((unsigned int)time(0)); 
     
-    // Cấp phát bộ nhớ động cho mảng 2 chiều 'board' chứa các con trỏ Tile.
-    board = new Tile**[gridSize];           // Tạo mảng các hàng (rows)
+    // Cấp phát bộ nhớ cho Bàn cờ chính và Bàn cờ lưu trạng thái (Undo)
+    board = new Tile**[gridSize];
+    prevBoard = new int*[gridSize]; 
+    
     for (int i = 0; i < gridSize; i++) {
-        board[i] = new Tile*[gridSize];     // Tạo mảng các cột (cols) cho từng hàng
+        board[i] = new Tile*[gridSize];
+        prevBoard[i] = new int[gridSize];
         for (int j = 0; j < gridSize; j++) {
-            // Khởi tạo từng ô gạch (Tile) với giá trị ban đầu là 0 (ô trống)
             board[i][j] = new Tile(0, i, j); 
+            prevBoard[i][j] = 0; // Khởi tạo mảng lưu trạng thái bằng 0
         }
     }
     
-    // Luật game 2048: Khi bắt đầu game, trên bàn cờ luôn có sẵn 2 số
     spawnRandomTile();
     spawnRandomTile();
 }
@@ -34,123 +40,131 @@ Grid::Grid(int size) {
 // 2. DESTRUCTOR (HÀM HỦY)
 // ==============================================================================
 Grid::~Grid() {
-    // Thu hồi bộ nhớ để chống rò rỉ (memory leak) khi thoát game
     for (int i = 0; i < gridSize; i++) {
         for (int j = 0; j < gridSize; j++) {
-            delete board[i][j]; // Xóa từng đối tượng Tile
+            delete board[i][j];
         }
-        delete[] board[i];      // Xóa từng mảng cột
+        delete[] board[i];
+        delete[] prevBoard[i]; // Giải phóng bộ nhớ mảng Undo
     }
-    delete[] board;             // Xóa mảng hàng chứa con trỏ tổng
+    delete[] board;
+    delete[] prevBoard;
 }
 
 // ==============================================================================
 // 3. HÀM SINH SỐ NGẪU NHIÊN (2 hoặc 4)
 // ==============================================================================
 void Grid::spawnRandomTile() {
-    // Dùng vector để lưu danh sách tọa độ (row, col) của tất cả các ô còn trống
     std::vector<std::pair<int, int>> emptyCells;
 
-    // Quét toàn bộ bàn cờ để tìm ô trống (giá trị = 0)
     for (int i = 0; i < gridSize; i++) {
         for (int j = 0; j < gridSize; j++) {
             if (board[i][j]->getValue() == 0) {
-                emptyCells.push_back({i, j}); // Thêm tọa độ ô trống vào danh sách
+                emptyCells.push_back({i, j});
             }
         }
     }
 
-    // Nếu bàn cờ đã đầy (không còn ô trống), thoát hàm không sinh thêm số
     if (emptyCells.empty()) return;
 
-    // Chọn ngẫu nhiên 1 vị trí trong danh sách các ô trống
     int randomIndex = rand() % emptyCells.size();
     int row = emptyCells[randomIndex].first;
     int col = emptyCells[randomIndex].second;
 
-    // Xác định xác suất sinh số: 90% ra số 2, 10% ra số 4
     int randomChance = rand() % 100;
     int newValue = (randomChance < 90) ? 2 : 4;
-    
-    // Gán giá trị mới cho ô vừa được chọn
     board[row][col]->setValue(newValue);
 }
 
 // ==============================================================================
-// 4. HÀM LÕI: THUẬT TOÁN DỒN VÀ GỘP SỐ TRÊN 1 ĐƯỜNG THẲNG (1D Array)
+// 4. HÀM LƯU TRẠNG THÁI (DÙNG CHO UNDO)
+// ==============================================================================
+void Grid::saveState() {
+    for (int i = 0; i < gridSize; i++) {
+        for (int j = 0; j < gridSize; j++) {
+            // Lưu lại giá trị của toàn bộ bàn cờ hiện tại vào prevBoard
+            prevBoard[i][j] = board[i][j]->getValue();
+        }
+    }
+    prevScore = score;
+    canUndo = true; // Bật cờ cho phép Undo
+}
+
+// ==============================================================================
+// 5. HÀM LÕI: THUẬT TOÁN DỒN VÀ GỘP SỐ (KÈM NHẬN THƯỞNG POWER-UPS)
 // ==============================================================================
 bool Grid::pushLine(Tile** line) {
     bool moved = false;
-    int insertPos = 0; // Vị trí chèn phần tử (con trỏ ảo trỏ đến ô trống gần nhất)
+    int insertPos = 0;
     
-    // BƯỚC 1: DỒN CÁC SỐ KHÁC 0 VỀ ĐẦU MẢNG
+    // BƯỚC 1: DỒN SỐ
     for (int i = 0; i < gridSize; i++) {
         if (line[i]->getValue() != 0) {
-            // Nếu ô hiện tại có số và không nằm ở đúng vị trí chèn
             if (i != insertPos) {
-                // Di chuyển số về vị trí chèn, ô cũ biến thành 0
                 line[insertPos]->setValue(line[i]->getValue());
                 line[i]->setValue(0);
-                moved = true; // Ghi nhận là có sự di chuyển
+                moved = true;
             }
-            insertPos++; // Dịch vị trí chèn lên 1 ô
+            insertPos++;
         }
     }
     
-    // BƯỚC 2: GỘP CÁC SỐ GIỐNG NHAU NẰM CẠNH NHAU
+    // BƯỚC 2: GỘP SỐ VÀ NHẬN THƯỞNG
     for (int i = 0; i < gridSize - 1; i++) {
         int currentVal = line[i]->getValue();
         int nextVal = line[i+1]->getValue();
         
-        // Nếu 2 ô liền kề có cùng giá trị (và không phải ô trống)
         if (currentVal != 0 && currentVal == nextVal) {
-            // Ô hiện tại nhân đôi giá trị
-            line[i]->setValue(currentVal * 2);
-            score += currentVal * 2; // Cộng điểm bằng đúng giá trị vừa gộp được
+            int mergedValue = currentVal * 2; // Sinh ra số mới
             
-            // Ô kế bên biến thành 0
+            line[i]->setValue(mergedValue);
+            score += mergedValue;
+            
+            // --- LOGIC NHẬN THƯỞNG POWER-UPS TẠI ĐÂY ---
+            if (mergedValue == 64) {
+                undoCount++;
+            } else if (mergedValue == 128) {
+                swapCount++;
+            } else if (mergedValue == 256) {
+                deleteCount++;
+            }
+            // ------------------------------------------
+            
             line[i+1]->setValue(0);
             moved = true;
             
-            // Sau khi gộp, sẽ xuất hiện 1 ô trống ở giữa, 
-            // Cần kéo toàn bộ các phần tử phía sau lên 1 nấc để lấp chỗ trống
             for (int j = i + 1; j < gridSize - 1; j++) {
                 line[j]->setValue(line[j+1]->getValue());
             }
-            // Gán ô cuối cùng bằng 0 vì đã bị kéo lên
             line[gridSize - 1]->setValue(0);
         }
     }
-    // Trả về true nếu mảng có sự thay đổi (để biết có nên sinh thêm số hay không)
     return moved; 
 }
 
 // ==============================================================================
-// 5. CÁC HÀM DI CHUYỂN BÀN CỜ
-// Thuật toán: Trích xuất các Hàng/Cột thành các mảng 1 chiều (line) 
-// rồi ném cho hàm pushLine() xử lý, sau đó tự động cập nhật lại bàn cờ.
+// 6. CÁC HÀM DI CHUYỂN BÀN CỜ
 // ==============================================================================
-
 void Grid::shiftLeft() {
+    saveState(); // LƯU TRẠNG THÁI TRƯỚC KHI DI CHUYỂN
     bool moved = false;
     for (int i = 0; i < gridSize; i++) {
         Tile** row = new Tile*[gridSize];
         for (int j = 0; j < gridSize; j++) {
-            row[j] = board[i][j]; // Lấy dữ liệu từ trái sang phải
+            row[j] = board[i][j];
         }
         if (pushLine(row)) moved = true;
-        delete[] row; // Xóa mảng tạm để tránh tràn ram
+        delete[] row;
     }
-    // Nếu bàn cờ có sự di chuyển, sinh ra một số ngẫu nhiên mới
     if (moved) spawnRandomTile();
 }
 
 void Grid::shiftRight() {
+    saveState(); // LƯU TRẠNG THÁI TRƯỚC KHI DI CHUYỂN
     bool moved = false;
     for (int i = 0; i < gridSize; i++) {
         Tile** row = new Tile*[gridSize];
         for (int j = 0; j < gridSize; j++) {
-            // Lấy dữ liệu ĐẢO NGƯỢC từ phải sang trái
             row[j] = board[i][gridSize - 1 - j];
         }
         if (pushLine(row)) moved = true;
@@ -160,11 +174,12 @@ void Grid::shiftRight() {
 }
 
 void Grid::shiftUp() {
+    saveState(); // LƯU TRẠNG THÁI TRƯỚC KHI DI CHUYỂN
     bool moved = false;
     for (int j = 0; j < gridSize; j++) {
         Tile** col = new Tile*[gridSize];
         for (int i = 0; i < gridSize; i++) {
-            col[i] = board[i][j]; // Lấy dữ liệu từ trên xuống dưới
+            col[i] = board[i][j];
         }
         if (pushLine(col)) moved = true;
         delete[] col;
@@ -173,11 +188,11 @@ void Grid::shiftUp() {
 }
 
 void Grid::shiftDown() {
+    saveState(); // LƯU TRẠNG THÁI TRƯỚC KHI DI CHUYỂN
     bool moved = false;
     for (int j = 0; j < gridSize; j++) {
         Tile** col = new Tile*[gridSize];
         for (int i = 0; i < gridSize; i++) {
-            // Lấy dữ liệu ĐẢO NGƯỢC từ dưới lên trên
             col[i] = board[gridSize - 1 - i][j];
         }
         if (pushLine(col)) moved = true;
@@ -187,37 +202,88 @@ void Grid::shiftDown() {
 }
 
 // ==============================================================================
-// 6. HÀM KIỂM TRA THUA GAME
+// 7. CÁC HÀM XỬ LÝ POWER-UPS
+// ==============================================================================
+
+// Chức năng 1: Hoàn tác nước đi
+bool Grid::useUndo() {
+    if (undoCount > 0 && canUndo) {
+        // Phục hồi lại dữ liệu từ mảng prevBoard
+        for (int i = 0; i < gridSize; i++) {
+            for (int j = 0; j < gridSize; j++) {
+                board[i][j]->setValue(prevBoard[i][j]);
+            }
+        }
+        score = prevScore;
+        undoCount--;
+        canUndo = false; // Ngăn chặn việc Undo nhiều lần liên tiếp
+        return true;
+    }
+    return false;
+}
+
+// Chức năng 2: Đổi chỗ 2 ô bất kỳ
+bool Grid::useSwap(int r1, int c1, int r2, int c2) {
+    if (swapCount > 0) {
+        // Kiểm tra tọa độ có nằm trong bàn cờ không
+        if (r1 >= 0 && r1 < gridSize && c1 >= 0 && c1 < gridSize &&
+            r2 >= 0 && r2 < gridSize && c2 >= 0 && c2 < gridSize) {
+            
+            // Đổi giá trị 2 ô
+            int temp = board[r1][c1]->getValue();
+            board[r1][c1]->setValue(board[r2][c2]->getValue());
+            board[r2][c2]->setValue(temp);
+            
+            swapCount--;
+            return true;
+        }
+    }
+    return false;
+}
+
+// Chức năng 3: Xóa 1 ô bất kỳ
+bool Grid::useDelete(int r, int c) {
+    if (deleteCount > 0) {
+        // Kiểm tra tọa độ hợp lệ
+        if (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
+            // Không xóa ô vốn đã trống
+            if (board[r][c]->getValue() != 0) {
+                board[r][c]->setValue(0); // Đưa giá trị ô về 0
+                deleteCount--;
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+// ==============================================================================
+// 8. HÀM KIỂM TRA THUA GAME
 // ==============================================================================
 bool Grid::checkGameOver() {
-    // Điều kiện 1: Nếu vẫn còn ít nhất 1 ô trống -> Chưa thua
     for (int i = 0; i < gridSize; i++) {
         for (int j = 0; j < gridSize; j++) {
             if (board[i][j]->getValue() == 0) return false;
         }
     }
     
-    // Điều kiện 2: Bàn cờ đã đầy (không qua được return false ở trên)
-    // Phải kiểm tra xem có 2 ô liền kề nào giống nhau để gộp không
     for (int i = 0; i < gridSize; i++) {
         for (int j = 0; j < gridSize - 1; j++) {
             int current = board[i][j]->getValue();
-            
-            // Kiểm tra hàng ngang (ô hiện tại với ô bên phải)
             if (current == board[i][j+1]->getValue()) return false;
-            
-            // Kiểm tra hàng dọc (ô hiện tại với ô bên dưới)
             if (current == board[j][i]->getValue()) return false;
         }
     }
     
-    // Nếu qua được cả 2 vòng lặp mà không return false, nghĩa là đã Thua
     return true;
 }
 
 // ==============================================================================
-// 7. CÁC HÀM GETTER (Bảo vệ tính đóng gói, UI chỉ được Đọc, không được Ghi)
+// 9. CÁC HÀM GETTER
 // ==============================================================================
 int Grid::getScore() const { return score; }
 int Grid::getTileValue(int row, int col) const { return board[row][col]->getValue(); }
 int Grid::getSize() const { return gridSize; }
+int Grid::getUndoCount() const { return undoCount; }
+int Grid::getSwapCount() const { return swapCount; }
+int Grid::getDeleteCount() const { return deleteCount; }
