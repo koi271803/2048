@@ -1,169 +1,170 @@
 #include "Grid.h"
 #include <cstdlib>
-#include <ctime>
+#include <ctime> // Thêm thư viện này để dùng hàm time(0)
+#include <vector>
 
-// 1. Hàm khởi tạo
 Grid::Grid(int size) {
-    gridSize = size;
-    score = 0;
-    isGameOver = false;
-    
-    // Cấp phát mảng 2 chiều
-    board.resize(gridSize, std::vector<Tile*>(gridSize, nullptr));
+    this->gridSize = size;
+    this->score = 0;
+
+    // Ép kiểu (unsigned int) để triệt tiêu cảnh báo C4244
+    srand((unsigned int)time(0));
+
+    // Cấp phát bộ nhớ
+    board = new Tile * *[gridSize];
     for (int i = 0; i < gridSize; i++) {
+        board[i] = new Tile * [gridSize];
         for (int j = 0; j < gridSize; j++) {
             board[i][j] = new Tile(0, i, j);
         }
     }
-    
-    srand(time(0));
+
     spawnRandomTile();
     spawnRandomTile();
 }
 
-// 2. Hàm hủy (tránh rò rỉ bộ nhớ)
 Grid::~Grid() {
     for (int i = 0; i < gridSize; i++) {
         for (int j = 0; j < gridSize; j++) {
             delete board[i][j];
         }
+        delete[] board[i];
     }
+    delete[] board;
 }
 
-// 3. Hàm sinh số ngẫu nhiên (Giống randomtile trong ảnh)
 void Grid::spawnRandomTile() {
     std::vector<std::pair<int, int>> emptyCells;
+
     for (int i = 0; i < gridSize; i++) {
         for (int j = 0; j < gridSize; j++) {
             if (board[i][j]->getValue() == 0) {
-                emptyCells.push_back({i, j});
+                emptyCells.push_back({ i, j });
             }
         }
     }
+
     if (emptyCells.empty()) return;
 
     int randomIndex = rand() % emptyCells.size();
     int row = emptyCells[randomIndex].first;
     int col = emptyCells[randomIndex].second;
-    
-    int newValue = (rand() % 10 < 9) ? 2 : 4;
+
+    int randomChance = rand() % 100;
+    int newValue = (randomChance < 90) ? 2 : 4;
     board[row][col]->setValue(newValue);
 }
 
-// 4. Hàm cốt lõi: Dồn và gộp 1 hàng/cột (Giống hàm push trong ảnh)
-void Grid::pushLine(std::vector<int>& line) {
-    // Bước 1: Dồn các số khác 0 sát vào nhau
-    std::vector<int> temp;
-    for (int val : line) {
-        if (val != 0) temp.push_back(val);
-    }
-
-    // Bước 2: Gộp các số giống nhau
-    for (size_t i = 0; i < temp.size(); i++) {
-        if (i + 1 < temp.size() && temp[i] == temp[i + 1]) {
-            temp[i] *= 2;
-            score += temp[i]; // Cộng điểm
-            temp[i + 1] = 0;
-        }
-    }
-
-    // Bước 3: Dồn lại lần cuối và cập nhật mảng gốc
-    line.assign(line.size(), 0);
+bool Grid::pushLine(Tile** line) {
+    bool moved = false;
     int insertPos = 0;
-    for (int val : temp) {
-        if (val != 0) {
-            line[insertPos++] = val;
+
+    for (int i = 0; i < gridSize; i++) {
+        if (line[i]->getValue() != 0 && line[i]->getValue() != -1) {
+            if (i != insertPos) {
+                if (line[insertPos]->getValue() == -1) {
+                    insertPos++;
+                    i--;
+                    continue;
+                }
+                line[insertPos]->setValue(line[i]->getValue());
+                line[i]->setValue(0);
+                moved = true;
+            }
+            insertPos++;
         }
     }
+
+    for (int i = 0; i < gridSize - 1; i++) {
+        int currentVal = line[i]->getValue();
+        int nextVal = line[i + 1]->getValue();
+
+        if (currentVal != 0 && currentVal != -1 && currentVal == nextVal) {
+            line[i]->setValue(currentVal * 2);
+            score += currentVal * 2;
+            line[i + 1]->setValue(0);
+            moved = true;
+
+            for (int j = i + 1; j < gridSize - 1; j++) {
+                line[j]->setValue(line[j + 1]->getValue());
+            }
+            line[gridSize - 1]->setValue(0);
+        }
+    }
+    return moved;
 }
 
-// 5. Thao tác trượt TRÁI
 void Grid::shiftLeft() {
     bool moved = false;
     for (int i = 0; i < gridSize; i++) {
-        std::vector<int> line(gridSize);
-        for (int j = 0; j < gridSize; j++) line[j] = board[i][j]->getValue();
-        
-        std::vector<int> original = line;
-        pushLine(line);
-        
+        Tile** row = new Tile * [gridSize];
         for (int j = 0; j < gridSize; j++) {
-            if (original[j] != line[j]) moved = true;
-            board[i][j]->setValue(line[j]);
+            row[j] = board[i][j];
         }
+        if (pushLine(row)) moved = true;
+        delete[] row;
     }
     if (moved) spawnRandomTile();
 }
 
-// 6. Thao tác trượt PHẢI
 void Grid::shiftRight() {
     bool moved = false;
     for (int i = 0; i < gridSize; i++) {
-        std::vector<int> line(gridSize);
-        for (int j = 0; j < gridSize; j++) line[j] = board[i][gridSize - 1 - j]->getValue();
-        
-        std::vector<int> original = line;
-        pushLine(line);
-        
+        Tile** row = new Tile * [gridSize];
         for (int j = 0; j < gridSize; j++) {
-            if (original[j] != line[j]) moved = true;
-            board[i][gridSize - 1 - j]->setValue(line[j]);
+            row[j] = board[i][gridSize - 1 - j];
         }
+        if (pushLine(row)) moved = true;
+        delete[] row;
     }
     if (moved) spawnRandomTile();
 }
 
-// 7. Thao tác trượt LÊN
 void Grid::shiftUp() {
     bool moved = false;
     for (int j = 0; j < gridSize; j++) {
-        std::vector<int> line(gridSize);
-        for (int i = 0; i < gridSize; i++) line[i] = board[i][j]->getValue();
-        
-        std::vector<int> original = line;
-        pushLine(line);
-        
+        Tile** col = new Tile * [gridSize];
         for (int i = 0; i < gridSize; i++) {
-            if (original[i] != line[i]) moved = true;
-            board[i][j]->setValue(line[i]);
+            col[i] = board[i][j];
         }
+        if (pushLine(col)) moved = true;
+        delete[] col;
     }
     if (moved) spawnRandomTile();
 }
 
-// 8. Thao tác trượt XUỐNG
 void Grid::shiftDown() {
     bool moved = false;
     for (int j = 0; j < gridSize; j++) {
-        std::vector<int> line(gridSize);
-        for (int i = 0; i < gridSize; i++) line[i] = board[gridSize - 1 - i][j]->getValue();
-        
-        std::vector<int> original = line;
-        pushLine(line);
-        
+        Tile** col = new Tile * [gridSize];
         for (int i = 0; i < gridSize; i++) {
-            if (original[i] != line[i]) moved = true;
-            board[gridSize - 1 - i][j]->setValue(line[i]);
+            col[i] = board[gridSize - 1 - i][j];
         }
+        if (pushLine(col)) moved = true;
+        delete[] col;
     }
     if (moved) spawnRandomTile();
 }
 
-// 9. Kiểm tra điều kiện thua
 bool Grid::checkGameOver() {
     for (int i = 0; i < gridSize; i++) {
         for (int j = 0; j < gridSize; j++) {
             if (board[i][j]->getValue() == 0) return false;
-            if (j < gridSize - 1 && board[i][j]->getValue() == board[i][j + 1]->getValue()) return false;
-            if (i < gridSize - 1 && board[i][j]->getValue() == board[i + 1][j]->getValue()) return false;
         }
     }
-    isGameOver = true;
+
+    for (int i = 0; i < gridSize; i++) {
+        for (int j = 0; j < gridSize - 1; j++) {
+            int current = board[i][j]->getValue();
+            if (current != -1 && current == board[i][j + 1]->getValue()) return false;
+            if (current != -1 && current == board[j][i]->getValue()) return false;
+        }
+    }
+
     return true;
 }
 
-// 10. Các hàm Getter
+// Giữ nguyên các hàm Getter với từ khóa const y hệt code gốc của bạn
 int Grid::getScore() const { return score; }
 int Grid::getTileValue(int row, int col) const { return board[row][col]->getValue(); }
 int Grid::getSize() const { return gridSize; }
-}
