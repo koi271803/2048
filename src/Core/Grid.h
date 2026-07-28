@@ -5,29 +5,44 @@
 
 class Grid {
 protected:
-    int gridSize; // Sử dụng tên biến gridSize như trong code cũ của bạn
+    int gridSize; 
     int score;
-    Tile*** board; // Mảng 2 chiều động chứa con trỏ Tile
+    Tile*** board; 
+    
+    // --- THÊM MỚI: Dữ liệu cho Power-ups ---
+    int undoCount;
+    int swapCount;
+    int deleteCount;
+    
+    // Mảng và điểm lưu lại trạng thái trước đó (dành cho Undo)
+    int** prevBoard; 
+    int prevScore;
+    bool canUndo; // Cờ kiểm tra xem có trạng thái cũ để lùi về không
 
-    // Hàm nội bộ xử lý dồn số (Đóng gói)
     bool pushLine(Tile** line);
+    void saveState(); // Hàm nội bộ lưu trạng thái bàn cờ trước khi di chuyển
 
 public:
     Grid(int size);
     virtual ~Grid();
 
-    // Các thao tác di chuyển
     void shiftLeft();
     void shiftRight();
     void shiftUp();
     void shiftDown();
-
-    // Tính Đa hình (sẵn sàng cho lớp ObstacleMode ghi đè)
     virtual void spawnRandomTile();
-
     bool checkGameOver();
 
-    // Các hàm Getter (có từ khóa const giống y như trong ảnh của bạn)
+    // --- THÊM MỚI: Các hàm sử dụng Power-ups ---
+    bool useUndo();
+    bool useSwap(int r1, int c1, int r2, int c2);
+    bool useDelete(int r, int c);
+
+    // --- THÊM MỚI: Các Getter để hiển thị lên màn hình ---
+    int getUndoCount() const;
+    int getSwapCount() const;
+    int getDeleteCount() const;
+
     int getScore() const;
     int getTileValue(int row, int col) const;
     int getSize() const;
