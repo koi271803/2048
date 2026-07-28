@@ -2,32 +2,33 @@
 #define GRID_H
 
 #include "Tile.h"
-#include <vector>
 
 class Grid {
-private:
-    std::vector<std::vector<Tile*>> board;
-    int gridSize;
+protected:
+    int gridSize; // Sử dụng tên biến gridSize như trong code cũ của bạn
     int score;
-    bool isGameOver;
+    Tile*** board; // Mảng 2 chiều động chứa con trỏ Tile
 
-    // Các hàm nội bộ không cho bên ngoài gọi (Tính Đóng gói)
-virtual void spawnRandomTile();
-    void pushLine(std::vector<int>& line); // Dựa trên hàm push trong ảnh của bạn
+    // Hàm nội bộ xử lý dồn số (Đóng gói)
+    bool pushLine(Tile** line);
 
 public:
     Grid(int size);
-    ~Grid();
+    virtual ~Grid();
 
-    // Các thao tác điều khiển
+    // Các thao tác di chuyển
     void shiftLeft();
     void shiftRight();
     void shiftUp();
     void shiftDown();
 
-    // Các hàm để UI lấy dữ liệu hiển thị
-    int getScore() const;
+    // Tính Đa hình (sẵn sàng cho lớp ObstacleMode ghi đè)
+    virtual void spawnRandomTile();
+
     bool checkGameOver();
+
+    // Các hàm Getter (có từ khóa const giống y như trong ảnh của bạn)
+    int getScore() const;
     int getTileValue(int row, int col) const;
     int getSize() const;
 };
