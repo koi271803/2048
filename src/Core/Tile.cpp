@@ -1,14 +1,14 @@
 #include "Tile.h"
 
-// Khởi tạo ô số
-Tile::Tile(int startValue, int startX, int startY) {
-    value = startValue;
+Tile::Tile(int val, int startX, int startY) {
+    value = val;
     x = startX;
     y = startY;
 }
 
-// Tính Đóng gói: Lấy giá trị
-int Tile::getValue() const {
+Tile::~Tile() {}
+
+int Tile::getValue() {
     return value;
 }
 
@@ -17,6 +17,7 @@ void Tile::setValue(int newValue) {
     value = newValue;
 }
 
+// Lỗi E0135 và E1670 sẽ biến mất vì đã được khai báo bên .h
 int Tile::getX() const { return x; }
 int Tile::getY() const { return y; }
 
