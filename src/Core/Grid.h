@@ -5,19 +5,22 @@
 
 class Grid {
 protected:
-    int gridSize; 
+    int gridSize;
     int score;
-    Tile*** board; 
-    
+    Tile*** board;
+
     // --- THÊM MỚI: Dữ liệu cho Power-ups ---
     int undoCount;
     int swapCount;
     int deleteCount;
-    
+
     // Mảng và điểm lưu lại trạng thái trước đó (dành cho Undo)
-    int** prevBoard; 
+    int** prevBoard;
     int prevScore;
     bool canUndo; // Cờ kiểm tra xem có trạng thái cũ để lùi về không
+
+    int stonesBroken; // Đếm số đá đã phá trong màn
+    void damageAdjacentObstacles(int row, int col); // Hàm kiểm tra 4 hướng để trừ máu đá
 
     bool pushLine(Tile** line);
     void saveState(); // Hàm nội bộ lưu trạng thái bàn cờ trước khi di chuyển
@@ -42,6 +45,8 @@ public:
     int getUndoCount() const;
     int getSwapCount() const;
     int getDeleteCount() const;
+
+    int getStonesBroken() const { return stonesBroken; } // Getter cho UI
 
     int getScore() const;
     int getTileValue(int row, int col) const;
