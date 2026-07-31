@@ -1,331 +1,226 @@
-#include "Grid.h"
+#include <iostream>
 #include <cstdlib>
-#include <ctime>   
+#include <conio.h>
 #include <vector>
+#include <cctype> // Thư viện hỗ trợ hàm tolower (chuyển thành chữ thường)
+#include "Grid.h"
 
-// ==============================================================================
-// 1. CONSTRUCTOR (HÀM KHỞI TẠO)
-// ==============================================================================
-Grid::Grid(int size) {
-    this->gridSize = size;
-    this->score = 0;
+using namespace std;
 
-    // Khởi tạo số lượng Power-ups mặc định khi New Game
-    undoCount = 2; // Cho sẵn 2 lượt Undo lúc bắt đầu
-    swapCount = 0;
-    deleteCount = 0;
-    canUndo = false;
-    prevScore = 0;
+enum GameState { MENU, NEW_GAME, CHALLENGE, SETTINGS, HOW_TO_PLAY };
 
-    stonesBroken = 0; // THÊM MỚI: Khởi tạo biến đếm số đá đã phá
+struct LevelConfig {
+    int boardSize;
+    int targetScore;
+    int maxMoves; 
+};
 
-    srand((unsigned int)time(0));
-
-    // Cấp phát bộ nhớ cho Bàn cờ chính và Bàn cờ lưu trạng thái (Undo)
-    board = new Tile * *[gridSize];
-    prevBoard = new int* [gridSize];
-
-    for (int i = 0; i < gridSize; i++) {
-        board[i] = new Tile * [gridSize];
-        prevBoard[i] = new int[gridSize];
-        for (int j = 0; j < gridSize; j++) {
-            board[i][j] = new Tile(0, i, j);
-            prevBoard[i][j] = 0; // Khởi tạo mảng lưu trạng thái bằng 0
-        }
-    }
-
-    spawnRandomTile();
-    spawnRandomTile();
+void printMenu() {
+    system("cls");
+    cout << "======================================\n";
+    cout << "                2 0 4 8       \n"; 
+    cout << "======================================\n";
+    cout << " [1] New Game (Select Size)\n";
+    cout << " [2] Challenge (5 Epic Levels)\n";
+    cout << " [3] Settings (Theme & Volume)\n";
+    cout << " [4] How to Play\n";
+    cout << "======================================\n";
+    cout << "Choose an option (1-4): ";
 }
 
-// ==============================================================================
-// 2. DESTRUCTOR (HÀM HỦY)
-// ==============================================================================
-Grid::~Grid() {
-    for (int i = 0; i < gridSize; i++) {
-        for (int j = 0; j < gridSize; j++) {
-            delete board[i][j];
-        }
-        delete[] board[i];
-        delete[] prevBoard[i]; // Giải phóng bộ nhớ mảng Undo
+void printGameScreen(Grid& game, int bestScore, int targetScore = 0, int maxMoves = 0) {
+    system("cls");
+    cout << " SCORE: " << game.getScore() << " \t\t BEST: " << bestScore << "\n";
+    
+    if (targetScore > 0) {
+        cout << " TARGET: " << targetScore << " \t MOVES: " << game.getMovesCount() << " / " << maxMoves << "\n";
+    } else {
+        cout << " MOVES: " << game.getMovesCount() << "\n";
     }
-    delete[] board;
-    delete[] prevBoard;
+    cout << "------------------------------------------------------\n";
+    cout << " Power-ups: [1] Undo (" << game.getUndoCount() << ") | [2] Swap (" 
+         << game.getSwapCount() << ") | [3] Delete (" << game.getDeleteCount() << ")\n";
+    cout << "------------------------------------------------------\n\n";
+
+    for (int i = 0; i < game.getSize(); i++) {
+        for (int j = 0; j < game.getSize(); j++) {
+            int val = game.getTileValue(i, j);
+            if (val == 0) cout << "[    ]\t"; 
+            else cout << "[ " << val << " ]\t";    
+        }
+        cout << "\n\n";
+    }
+    cout << "Move (WASD/Arrows) | Power-up (1/2/3) | Back to Menu (Q): ";
 }
 
-// ==============================================================================
-// 3. HÀM SINH SỐ NGẪU NHIÊN (2 hoặc 4)
-// ==============================================================================
-void Grid::spawnRandomTile() {
-    std::vector<std::pair<int, int>> emptyCells;
+// Hàm dọn dẹp rác bộ đệm (Dùng khi người chơi lỡ nhập chữ thay vì số)
+void clearInputBuffer() {
+    cin.clear(); // Xóa cờ lỗi của cin
+    cin.ignore(32767, '\n'); // Xóa toàn bộ ký tự bị kẹt cho đến khi gặp dấu Enter
+}
 
-    for (int i = 0; i < gridSize; i++) {
-        for (int j = 0; j < gridSize; j++) {
-            if (board[i][j]->getValue() == 0) {
-                emptyCells.push_back({ i, j });
+void runGameplay(int size, int targetScore = 0, int maxMoves = 0) {
+    Grid game(size);
+    int bestScore = 0; 
+    bool playing = true;
+
+    while (playing && !game.checkGameOver()) {
+        if (targetScore > 0 && game.getMovesCount() >= maxMoves && game.getScore() < targetScore) {
+            printGameScreen(game, bestScore, targetScore, maxMoves);
+            cout << "\nOUT OF MOVES! YOU LOSE! Press any key...";
+            (void)_getch();
+            return; 
+        }
+
+        if (game.getScore() > bestScore) bestScore = game.getScore();
+        
+        printGameScreen(game, bestScore, targetScore, maxMoves);
+        
+        // Nhận phím và chuyển ngay thành chữ thường để dễ xử lý (chống lỗi bật CapsLock)
+        int action = _getch(); 
+        
+        // Bắt mã phím mũi tên (Mũi tên thường gửi 2 mã liên tiếp: 224 hoặc 0, sau đó là hướng)
+        if (action == 224 || action == 0) { 
+            action = _getch(); 
+            if (action == 72) game.shiftUp();        
+            else if (action == 80) game.shiftDown(); 
+            else if (action == 75) game.shiftLeft(); 
+            else if (action == 77) game.shiftRight();
+        } 
+        else {
+            action = tolower(action); // Chuẩn hóa về chữ thường: 'W' thành 'w'
+
+            if (action == 'w') game.shiftUp();
+            else if (action == 's') game.shiftDown();
+            else if (action == 'a') game.shiftLeft();
+            else if (action == 'd') game.shiftRight();
+            
+            else if (action == '1') {
+                if (!game.useUndo()) { cout << "\nCannot Undo!"; (void)_getch(); }
             }
-        }
-    }
-
-    if (emptyCells.empty()) return;
-
-    int randomIndex = rand() % emptyCells.size();
-    int row = emptyCells[randomIndex].first;
-    int col = emptyCells[randomIndex].second;
-
-    int randomChance = rand() % 100;
-    int newValue = (randomChance < 90) ? 2 : 4;
-    board[row][col]->setValue(newValue);
-}
-
-// ==============================================================================
-// 4. HÀM LƯU TRẠNG THÁI (DÙNG CHO UNDO)
-// ==============================================================================
-void Grid::saveState() {
-    for (int i = 0; i < gridSize; i++) {
-        for (int j = 0; j < gridSize; j++) {
-            // Lưu lại giá trị của toàn bộ bàn cờ hiện tại vào prevBoard
-            prevBoard[i][j] = board[i][j]->getValue();
-        }
-    }
-    prevScore = score;
-    canUndo = true; // Bật cờ cho phép Undo
-}
-
-// ==============================================================================
-// 5. HÀM PHÁ ĐÁ XUNG QUANH (THÊM MỚI CHO CHẾ ĐỘ CHALLENGE)
-// ==============================================================================
-void Grid::damageAdjacentObstacles(int row, int col) {
-    // Mảng tọa độ 4 hướng: Lên, Xuống, Trái, Phải
-    int dr[] = { -1, 1, 0, 0 };
-    int dc[] = { 0, 0, -1, 1 };
-
-    for (int i = 0; i < 4; i++) {
-        int r = row + dr[i];
-        int c = col + dc[i];
-
-        // Kiểm tra tọa độ có nằm trong bàn cờ không
-        if (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
-            // Nếu ô kế bên là cục đá
-            if (board[r][c]->getValue() == -1) {
-                // Ép kiểu để gọi hàm trừ máu của ObstacleTile (Yêu cầu file Tile.h đã cập nhật)
-                ObstacleTile* stone = dynamic_cast<ObstacleTile*>(board[r][c]);
-                if (stone != nullptr) {
-                    stone->takeDamage();
-                    if (stone->getValue() == 0) { // Nếu máu về 0 (Đá bị vỡ)
-                        stonesBroken++;
+            else if (action == '2') {
+                if (game.getSwapCount() > 0) {
+                    int r1, c1, r2, c2;
+                    cout << "\n[SWAP] Enter coords (r1 c1 r2 c2): ";
+                    cin >> r1 >> c1 >> r2 >> c2;
+                    
+                    if (cin.fail()) { // Bắt lỗi nhập chữ cái thay vì số
+                        clearInputBuffer();
+                        cout << "Input Error! Please enter numbers only.";
+                        (void)_getch();
+                    } else if (!game.useSwap(r1, c1, r2, c2)) { 
+                        cout << "Invalid Coordinates!"; 
+                        (void)_getch(); 
                     }
                 }
             }
-        }
-    }
-}
-
-// ==============================================================================
-// 6. HÀM LÕI: THUẬT TOÁN DỒN VÀ GỘP SỐ (NÂNG CẤP XỬ LÝ ĐÁ CHẶN ĐƯỜNG)
-// ==============================================================================
-bool Grid::pushLine(Tile** line) {
-    bool moved = false;
-
-    // HÀM CỤC BỘ (LAMBDA): Dồn số thông minh, tự động nhận diện và khựng lại khi gặp đá
-    auto shift = [&]() {
-        bool didShift = false;
-        int insertPos = 0;
-        for (int i = 0; i < gridSize; i++) {
-            if (line[i]->getValue() == -1) {
-                // Nếu là đá, vị trí chèn bị đẩy qua mặt đá
-                insertPos = i + 1;
-            }
-            else if (line[i]->getValue() != 0) {
-                if (i != insertPos) {
-                    line[insertPos]->setValue(line[i]->getValue());
-                    line[i]->setValue(0);
-                    didShift = true;
+            else if (action == '3') {
+                if (game.getDeleteCount() > 0) {
+                    int r, c;
+                    cout << "\n[DELETE] Enter coord (r c): ";
+                    cin >> r >> c;
+                    
+                    if (cin.fail()) {
+                        clearInputBuffer();
+                        cout << "Input Error! Please enter numbers only.";
+                        (void)_getch();
+                    } else if (!game.useDelete(r, c)) { 
+                        cout << "Invalid Coordinates or Empty Tile!"; 
+                        (void)_getch(); 
+                    }
                 }
-                insertPos++;
+            }
+            else if (action == 'q') {
+                playing = false;
             }
         }
-        return didShift;
-        };
 
-    // BƯỚC 1: DỒN SỐ LẦN 1
-    if (shift()) moved = true;
-
-    // BƯỚC 2: GỘP SỐ VÀ KÍCH HOẠT NỔ PHÁ ĐÁ
-    for (int i = 0; i < gridSize - 1; i++) {
-        int currentVal = line[i]->getValue();
-        int nextVal = line[i + 1]->getValue();
-
-        // Không gộp ô trống và KHÔNG GỘP ĐÁ (-1)
-        if (currentVal != 0 && currentVal != -1 && currentVal == nextVal) {
-            int mergedValue = currentVal * 2; // Sinh ra số mới
-
-            line[i]->setValue(mergedValue);
-            line[i + 1]->setValue(0);
-            score += mergedValue;
-
-            // --- LOGIC PHÁ ĐÁ ---
-            // Truy xuất tọa độ thực của ô vừa gộp để gây sát thương xung quanh
-            damageAdjacentObstacles(line[i]->getX(), line[i]->getY());
-            // --------------------
-
-            // --- LOGIC NHẬN THƯỞNG POWER-UPS ---
-            if (mergedValue == 64) undoCount++;
-            else if (mergedValue == 128) swapCount++;
-            else if (mergedValue == 256) deleteCount++;
-
-            moved = true;
+        if (targetScore > 0 && game.getScore() >= targetScore && game.getMovesCount() <= maxMoves) {
+            printGameScreen(game, bestScore, targetScore, maxMoves);
+            cout << "\nLEVEL CLEARED! MEOW MEOW! Press any key...";
+            (void)_getch();
+            playing = false; 
         }
     }
 
-    // BƯỚC 3: DỒN SỐ LẦN 2 (Lấp khoảng trống do bước gộp số tạo ra)
-    if (shift()) moved = true;
-
-    return moved;
-}
-
-// ==============================================================================
-// 7. CÁC HÀM DI CHUYỂN BÀN CỜ
-// ==============================================================================
-void Grid::shiftLeft() {
-    saveState(); // LƯU TRẠNG THÁI TRƯỚC KHI DI CHUYỂN
-    bool moved = false;
-    for (int i = 0; i < gridSize; i++) {
-        Tile** row = new Tile * [gridSize];
-        for (int j = 0; j < gridSize; j++) {
-            row[j] = board[i][j];
-        }
-        if (pushLine(row)) moved = true;
-        delete[] row;
+    if (game.checkGameOver()) {
+        printGameScreen(game, bestScore, targetScore, maxMoves);
+        cout << "\nGAME OVER! BOARD FULL! Press any key to return to Main Menu...";
+        (void)_getch();
     }
-    if (moved) spawnRandomTile();
 }
 
-void Grid::shiftRight() {
-    saveState(); // LƯU TRẠNG THÁI TRƯỚC KHI DI CHUYỂN
-    bool moved = false;
-    for (int i = 0; i < gridSize; i++) {
-        Tile** row = new Tile * [gridSize];
-        for (int j = 0; j < gridSize; j++) {
-            row[j] = board[i][gridSize - 1 - j];
-        }
-        if (pushLine(row)) moved = true;
-        delete[] row;
-    }
-    if (moved) spawnRandomTile();
-}
+int main() {
+    GameState currentState = MENU;
+    
+    vector<LevelConfig> challengeLevels = {
+        {4, 128,  50},  
+        {4, 256,  100}, 
+        {4, 512,  150}, 
+        {5, 1024, 250}, 
+        {5, 2048, 400}  
+    };
 
-void Grid::shiftUp() {
-    saveState(); // LƯU TRẠNG THÁI TRƯỚC KHI DI CHUYỂN
-    bool moved = false;
-    for (int j = 0; j < gridSize; j++) {
-        Tile** col = new Tile * [gridSize];
-        for (int i = 0; i < gridSize; i++) {
-            col[i] = board[i][j];
-        }
-        if (pushLine(col)) moved = true;
-        delete[] col;
-    }
-    if (moved) spawnRandomTile();
-}
-
-void Grid::shiftDown() {
-    saveState(); // LƯU TRẠNG THÁI TRƯỚC KHI DI CHUYỂN
-    bool moved = false;
-    for (int j = 0; j < gridSize; j++) {
-        Tile** col = new Tile * [gridSize];
-        for (int i = 0; i < gridSize; i++) {
-            col[i] = board[gridSize - 1 - i][j];
-        }
-        if (pushLine(col)) moved = true;
-        delete[] col;
-    }
-    if (moved) spawnRandomTile();
-}
-
-// ==============================================================================
-// 8. CÁC HÀM XỬ LÝ POWER-UPS
-// ==============================================================================
-// Chức năng 1: Hoàn tác nước đi
-bool Grid::useUndo() {
-    if (undoCount > 0 && canUndo) {
-        // Phục hồi lại dữ liệu từ mảng prevBoard
-        for (int i = 0; i < gridSize; i++) {
-            for (int j = 0; j < gridSize; j++) {
-                board[i][j]->setValue(prevBoard[i][j]);
+    while (true) {
+        if (currentState == MENU) {
+            printMenu();
+            char choice = _getch();
+            switch (choice) {
+                case '1': currentState = NEW_GAME; break;
+                case '2': currentState = CHALLENGE; break;
+                case '3': currentState = SETTINGS; break;
+                case '4': currentState = HOW_TO_PLAY; break;
             }
         }
-        score = prevScore;
-        undoCount--;
-        canUndo = false; // Ngăn chặn việc Undo nhiều lần liên tiếp
-        return true;
-    }
-    return false;
-}
+        else if (currentState == NEW_GAME) {
+            system("cls");
+            cout << "=== SELECT GRID SIZE ===\n";
+            cout << "[1] 4x4   [2] 5x5   [3] 6x6\n";
+            cout << "Choose (1-3): ";
 
-// Chức năng 2: Đổi chỗ 2 ô bất kỳ
-bool Grid::useSwap(int r1, int c1, int r2, int c2) {
-    if (swapCount > 0) {
-        // Kiểm tra tọa độ có nằm trong bàn cờ không
-        if (r1 >= 0 && r1 < gridSize && c1 >= 0 && c1 < gridSize &&
-            r2 >= 0 && r2 < gridSize && c2 >= 0 && c2 < gridSize) {
-
-            // Đổi giá trị 2 ô
-            int temp = board[r1][c1]->getValue();
-            board[r1][c1]->setValue(board[r2][c2]->getValue());
-            board[r2][c2]->setValue(temp);
-
-            swapCount--;
-            return true;
-        }
-    }
-    return false;
-}
-
-// Chức năng 3: Xóa 1 ô bất kỳ
-bool Grid::useDelete(int r, int c) {
-    if (deleteCount > 0) {
-        // Kiểm tra tọa độ hợp lệ
-        if (r >= 0 && r < gridSize && c >= 0 && c < gridSize) {
-            // Không xóa ô vốn đã trống
-            if (board[r][c]->getValue() != 0) {
-                board[r][c]->setValue(0); // Đưa giá trị ô về 0
-                deleteCount--;
-                return true;
+            int size = 4;
+            bool validChoice = false;
+            while (!validChoice) {
+                char sizeChoice = _getch();
+                if (sizeChoice == '1') { size = 4; validChoice = true; }
+                else if (sizeChoice == '2') { size = 5; validChoice = true; }
+                else if (sizeChoice == '3') { size = 6; validChoice = true; }
             }
+            
+            runGameplay(size); 
+            currentState = MENU; 
+        }
+        else if (currentState == CHALLENGE) {
+            for (size_t i = 0; i < challengeLevels.size(); i++) {
+                system("cls");
+                cout << "=== CHALLENGE MODE ===\n";
+                cout << "Starting Level " << i + 1 << "...\n";
+                cout << "Target: " << challengeLevels[i].targetScore << " | Max Moves: " << challengeLevels[i].maxMoves << "\n";
+                cout << "Press any key to start!";
+                (void)_getch();
+                
+                runGameplay(challengeLevels[i].boardSize, challengeLevels[i].targetScore, challengeLevels[i].maxMoves);
+            }
+            currentState = MENU;
+        }
+        else if (currentState == SETTINGS) {
+            system("cls");
+            cout << "=== SETTINGS (THEME & VOLUME) ===\n";
+            cout << "Themes: [1] Pastel Cat (Default)  [2] Dark Meow  [3] Ocean Cat\n";
+            cout << "Press any key to return...\n";
+            (void)_getch();
+            currentState = MENU;
+        }
+        else if (currentState == HOW_TO_PLAY) {
+            system("cls");
+            cout << "=== HOW TO PLAY ===\n";
+            cout << "Move: WASD or Arrows. Power-ups: 1, 2, 3.\n";
+            cout << "Challenge Mode: Reach target score before you run out of moves!\n";
+            cout << "Press any key to return...\n";
+            (void)_getch();
+            currentState = MENU;
         }
     }
-    return false;
+    
+    return 0;
 }
-
-// ==============================================================================
-// 9. HÀM KIỂM TRA THUA GAME
-// ==============================================================================
-bool Grid::checkGameOver() {
-    for (int i = 0; i < gridSize; i++) {
-        for (int j = 0; j < gridSize; j++) {
-            if (board[i][j]->getValue() == 0) return false;
-        }
-    }
-
-    for (int i = 0; i < gridSize; i++) {
-        for (int j = 0; j < gridSize - 1; j++) {
-            int current = board[i][j]->getValue();
-            // CẬP NHẬT: Thêm điều kiện != -1 để game không nhận diện 2 cục đá cạnh nhau là 1 nước đi còn sót
-            if (current != -1 && current == board[i][j + 1]->getValue()) return false;
-            if (current != -1 && current == board[j][i]->getValue()) return false;
-        }
-    }
-
-    return true;
-}
-
-// ==============================================================================
-// 10. CÁC HÀM GETTER
-// ==============================================================================
-int Grid::getScore() const { return score; }
-int Grid::getTileValue(int row, int col) const { return board[row][col]->getValue(); }
-int Grid::getSize() const { return gridSize; }
-int Grid::getUndoCount() const { return undoCount; }
-int Grid::getSwapCount() const { return swapCount; }
-int Grid::getDeleteCount() const { return deleteCount; }
