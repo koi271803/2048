@@ -18,7 +18,7 @@ struct LevelConfig {
 void printMenu() {
     system("cls");
     cout << "======================================\n";
-    cout << "       2 0 4 8  -  M E O W  ^._.^     \n";
+    cout << "               2 0 4 8      \n";
     cout << "======================================\n";
     cout << " [1] New Game (Select Size)\n";
     cout << " [2] Challenge (5 Epic Levels)\n";
