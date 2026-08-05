@@ -12,13 +12,13 @@ enum GameState { MENU, NEW_GAME, CHALLENGE, SETTINGS, HOW_TO_PLAY };
 struct LevelConfig {
     int boardSize;
     int targetScore;
-    int maxMoves; 
+    int maxMoves;
 };
 
 void printMenu() {
     system("cls");
     cout << "======================================\n";
-    cout << "                2 0 4 8       \n"; 
+    cout << "       2 0 4 8  -  M E O W  ^._.^     \n";
     cout << "======================================\n";
     cout << " [1] New Game (Select Size)\n";
     cout << " [2] Challenge (5 Epic Levels)\n";
@@ -31,22 +31,23 @@ void printMenu() {
 void printGameScreen(Grid& game, int bestScore, int targetScore = 0, int maxMoves = 0) {
     system("cls");
     cout << " SCORE: " << game.getScore() << " \t\t BEST: " << bestScore << "\n";
-    
+
     if (targetScore > 0) {
         cout << " TARGET: " << targetScore << " \t MOVES: " << game.getMovesCount() << " / " << maxMoves << "\n";
-    } else {
+    }
+    else {
         cout << " MOVES: " << game.getMovesCount() << "\n";
     }
     cout << "------------------------------------------------------\n";
-    cout << " Power-ups: [1] Undo (" << game.getUndoCount() << ") | [2] Swap (" 
-         << game.getSwapCount() << ") | [3] Delete (" << game.getDeleteCount() << ")\n";
+    cout << " Power-ups: [1] Undo (" << game.getUndoCount() << ") | [2] Swap ("
+        << game.getSwapCount() << ") | [3] Delete (" << game.getDeleteCount() << ")\n";
     cout << "------------------------------------------------------\n\n";
 
     for (int i = 0; i < game.getSize(); i++) {
         for (int j = 0; j < game.getSize(); j++) {
             int val = game.getTileValue(i, j);
-            if (val == 0) cout << "[    ]\t"; 
-            else cout << "[ " << val << " ]\t";    
+            if (val == 0) cout << "[    ]\t";
+            else cout << "[ " << val << " ]\t";
         }
         cout << "\n\n";
     }
@@ -61,7 +62,7 @@ void clearInputBuffer() {
 
 void runGameplay(int size, int targetScore = 0, int maxMoves = 0) {
     Grid game(size);
-    int bestScore = 0; 
+    int bestScore = 0;
     bool playing = true;
 
     while (playing && !game.checkGameOver()) {
@@ -69,24 +70,24 @@ void runGameplay(int size, int targetScore = 0, int maxMoves = 0) {
             printGameScreen(game, bestScore, targetScore, maxMoves);
             cout << "\nOUT OF MOVES! YOU LOSE! Press any key...";
             (void)_getch();
-            return; 
+            return;
         }
 
         if (game.getScore() > bestScore) bestScore = game.getScore();
-        
+
         printGameScreen(game, bestScore, targetScore, maxMoves);
-        
+
         // Nhận phím và chuyển ngay thành chữ thường để dễ xử lý (chống lỗi bật CapsLock)
-        int action = _getch(); 
-        
+        int action = _getch();
+
         // Bắt mã phím mũi tên (Mũi tên thường gửi 2 mã liên tiếp: 224 hoặc 0, sau đó là hướng)
-        if (action == 224 || action == 0) { 
-            action = _getch(); 
-            if (action == 72) game.shiftUp();        
-            else if (action == 80) game.shiftDown(); 
-            else if (action == 75) game.shiftLeft(); 
+        if (action == 224 || action == 0) {
+            action = _getch();
+            if (action == 72) game.shiftUp();
+            else if (action == 80) game.shiftDown();
+            else if (action == 75) game.shiftLeft();
             else if (action == 77) game.shiftRight();
-        } 
+        }
         else {
             action = tolower(action); // Chuẩn hóa về chữ thường: 'W' thành 'w'
 
@@ -94,7 +95,7 @@ void runGameplay(int size, int targetScore = 0, int maxMoves = 0) {
             else if (action == 's') game.shiftDown();
             else if (action == 'a') game.shiftLeft();
             else if (action == 'd') game.shiftRight();
-            
+
             else if (action == '1') {
                 if (!game.useUndo()) { cout << "\nCannot Undo!"; (void)_getch(); }
             }
@@ -103,14 +104,15 @@ void runGameplay(int size, int targetScore = 0, int maxMoves = 0) {
                     int r1, c1, r2, c2;
                     cout << "\n[SWAP] Enter coords (r1 c1 r2 c2): ";
                     cin >> r1 >> c1 >> r2 >> c2;
-                    
+
                     if (cin.fail()) { // Bắt lỗi nhập chữ cái thay vì số
                         clearInputBuffer();
                         cout << "Input Error! Please enter numbers only.";
                         (void)_getch();
-                    } else if (!game.useSwap(r1, c1, r2, c2)) { 
-                        cout << "Invalid Coordinates!"; 
-                        (void)_getch(); 
+                    }
+                    else if (!game.useSwap(r1, c1, r2, c2)) {
+                        cout << "Invalid Coordinates!";
+                        (void)_getch();
                     }
                 }
             }
@@ -119,14 +121,15 @@ void runGameplay(int size, int targetScore = 0, int maxMoves = 0) {
                     int r, c;
                     cout << "\n[DELETE] Enter coord (r c): ";
                     cin >> r >> c;
-                    
+
                     if (cin.fail()) {
                         clearInputBuffer();
                         cout << "Input Error! Please enter numbers only.";
                         (void)_getch();
-                    } else if (!game.useDelete(r, c)) { 
-                        cout << "Invalid Coordinates or Empty Tile!"; 
-                        (void)_getch(); 
+                    }
+                    else if (!game.useDelete(r, c)) {
+                        cout << "Invalid Coordinates or Empty Tile!";
+                        (void)_getch();
                     }
                 }
             }
@@ -139,7 +142,7 @@ void runGameplay(int size, int targetScore = 0, int maxMoves = 0) {
             printGameScreen(game, bestScore, targetScore, maxMoves);
             cout << "\nLEVEL CLEARED! MEOW MEOW! Press any key...";
             (void)_getch();
-            playing = false; 
+            playing = false;
         }
     }
 
@@ -152,13 +155,13 @@ void runGameplay(int size, int targetScore = 0, int maxMoves = 0) {
 
 int main() {
     GameState currentState = MENU;
-    
+
     vector<LevelConfig> challengeLevels = {
-        {4, 128,  50},  
-        {4, 256,  100}, 
-        {4, 512,  150}, 
-        {5, 1024, 250}, 
-        {5, 2048, 400}  
+        {4, 128,  50},
+        {4, 256,  100},
+        {4, 512,  150},
+        {5, 1024, 250},
+        {5, 2048, 400}
     };
 
     while (true) {
@@ -166,10 +169,10 @@ int main() {
             printMenu();
             char choice = _getch();
             switch (choice) {
-                case '1': currentState = NEW_GAME; break;
-                case '2': currentState = CHALLENGE; break;
-                case '3': currentState = SETTINGS; break;
-                case '4': currentState = HOW_TO_PLAY; break;
+            case '1': currentState = NEW_GAME; break;
+            case '2': currentState = CHALLENGE; break;
+            case '3': currentState = SETTINGS; break;
+            case '4': currentState = HOW_TO_PLAY; break;
             }
         }
         else if (currentState == NEW_GAME) {
@@ -186,9 +189,9 @@ int main() {
                 else if (sizeChoice == '2') { size = 5; validChoice = true; }
                 else if (sizeChoice == '3') { size = 6; validChoice = true; }
             }
-            
-            runGameplay(size); 
-            currentState = MENU; 
+
+            runGameplay(size);
+            currentState = MENU;
         }
         else if (currentState == CHALLENGE) {
             for (size_t i = 0; i < challengeLevels.size(); i++) {
@@ -198,7 +201,7 @@ int main() {
                 cout << "Target: " << challengeLevels[i].targetScore << " | Max Moves: " << challengeLevels[i].maxMoves << "\n";
                 cout << "Press any key to start!";
                 (void)_getch();
-                
+
                 runGameplay(challengeLevels[i].boardSize, challengeLevels[i].targetScore, challengeLevels[i].maxMoves);
             }
             currentState = MENU;
@@ -221,6 +224,6 @@ int main() {
             currentState = MENU;
         }
     }
-    
+
     return 0;
 }
