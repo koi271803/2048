@@ -1,27 +1,32 @@
 #include "Tile.h"
 
-Tile::Tile(int val, int startX, int startY) {
-    value = val;
-    x = startX;
-    y = startY;
-}
+// Constructor mặc định (khởi tạo ô trống)
+Tile::Tile() : value(0), x(0), y(0) {}
 
-Tile::~Tile() {}
+// Constructor khởi tạo ô có giá trị và vị trí cụ thể
+Tile::Tile(int val, int startX, int startY) : value(val), x(startX), y(startY) {}
 
-int Tile::getValue() {
+// Lấy giá trị của ô
+int Tile::getValue() const {
     return value;
 }
 
-// Tính Đóng gói: Gán giá trị mới (khi gộp số)
-void Tile::setValue(int newValue) {
-    value = newValue;
+// Thay đổi giá trị của ô
+void Tile::setValue(int val) {
+    value = val;
 }
 
-// Lỗi E0135 và E1670 sẽ biến mất vì đã được khai báo bên .h
-int Tile::getX() const { return x; }
-int Tile::getY() const { return y; }
+// Lấy vị trí hàng
+int Tile::getX() const {
+    return x;
+}
 
-// Tính Đa hình: Ghi đè hàm di chuyển
+// Lấy vị trí cột
+int Tile::getY() const {
+    return y;
+}
+
+// Hàm thực thi việc di chuyển (Cập nhật vị trí của ô)
 void Tile::move(int dx, int dy) {
     x += dx;
     y += dy;
