@@ -4,46 +4,50 @@
 #include "IMoveable.h"
 
 class Tile : public IMoveable {
-protected:
-    int value;
-    int x; // Đại diện cho Row (Hàng)
-    int y; // Đại diện cho Col (Cột)
+private:
+    int value; // Giá trị của ô số (2, 4, 8, 16...)
+    int x;     // Vị trí hàng hiện tại trên bàn cờ
+    int y;     // Vị trí cột hiện tại trên bàn cờ
+
+    // --- BIẾN QUẢN LÝ HOẠT ẢNH NẢY ---
+    float popScale = 1.0f;
+    bool isPopping = false;
 
 public:
+    // Constructor
+    Tile();
     Tile(int val, int startX, int startY);
-    virtual ~Tile();
 
-    virtual int getValue() const;
-    virtual void setValue(int newValue);
+    // Getter và Setter cho giá trị của ô
+    int getValue() const;
+    void setValue(int val);
+
+    // Getter lấy vị trí tọa độ
     int getX() const;
     int getY() const;
 
+    // Cài đặt phương thức di chuyển từ lớp IMoveable
     void move(int dx, int dy) override;
-};
 
-// THÊM MỚI: Lớp ObstacleTile kế thừa từ Tile
-class ObstacleTile : public Tile {
-private:
-    int weight; // Trọng số từ 1 đến 5
+    // --- CÁC HÀM QUẢN LÝ HOẠT ẢNH NẢY ---
+    float getScale() const { return popScale; }
 
-public:
-    // Gọi constructor lớp cha với value = -1 để đánh dấu đây là đá
-    ObstacleTile(int startX, int startY, int initialWeight) : Tile(-1, startX, startY) {
-        weight = initialWeight;
+    // Kích hoạt nảy phình to 130%
+    void triggerPop() {
+        popScale = 1.15f;
+        isPopping = true;
     }
 
-    // Hàm nhận sát thương
-    void takeDamage() {
-        if (weight > 0) {
-            weight--;
-            if (weight == 0) {
-                // Đá vỡ thì biến thành ô trống bình thường
-                this->value = 0;
+    // Gọi mỗi khung hình để thu nhỏ từ 130% về 100%
+    void updateAnimation() {
+        if (isPopping) {
+            popScale -= 0.05f;
+            if (popScale <= 1.0f) {
+                popScale = 1.0f;
+                isPopping = false;
             }
         }
     }
-
-    int getWeight() const { return weight; }
 };
 
 #endif // TILE_H
