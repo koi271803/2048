@@ -313,27 +313,46 @@ GameState Gameplay::handleEvent(const sf::Event& event, sf::RenderWindow& window
     }
 
     // POPUP POWER CONFIRM 
-    if (currentSubState == POPUP_POWER_CONFIRM) {
-        if (btnYes->isClicked(event, mousePos)) {
-            if (activePowerType == PowerType::UNDO) {
-                if (grid.useUndo()) {
+    if (currentSubState == POPUP_POWER_CONFIRM)
+    {
+        if (btnYes->isClicked(event, mousePos))
+        {
+            if (activePowerType == PowerType::UNDO)
+            {
+                if (grid.useUndo())
+                {
                     updatePowerCountsTexts();
                     updateScoreTexts();
                     updateMovesText();
                 }
                 currentSubState = PLAYING;
+                activePowerType = -1;
             }
-            else if (activePowerType == PowerType::SWAP) {
+            else if (activePowerType == PowerType::SWAP)
+            {
+                // === QUAN TRỌNG: Reset hết lựa chọn cũ ===
+                selectedR1 = selectedC1 = selectedR2 = selectedC2 = -1;
+
                 currentSubState = WAIT_FIRST_TILE;
             }
-            else if (activePowerType == PowerType::DELETE_TYPE) {
+            else if (activePowerType == PowerType::DELETE_TYPE)
+            {
+                // === QUAN TRỌNG: Reset hết lựa chọn cũ ===
+                selectedR1 = selectedC1 = selectedR2 = selectedC2 = -1;
+
                 currentSubState = WAIT_DELETE_TILE;
             }
         }
-        if (btnNo->isClicked(event, mousePos) || btnClosePopup->isClicked(event, mousePos)) {
+
+        if (btnNo->isClicked(event, mousePos) || btnClosePopup->isClicked(event, mousePos))
+        {
             currentSubState = PLAYING;
             activePowerType = -1;
+
+            // Reset luôn cho chắc
+            selectedR1 = selectedC1 = selectedR2 = selectedC2 = -1;
         }
+
         return GameState::GAMEPLAY;
     }
 
@@ -365,21 +384,35 @@ GameState Gameplay::handleEvent(const sf::Event& event, sf::RenderWindow& window
                                     currentSubState = WAIT_SECOND_TILE;
                                 }
                             }
-                            else if (currentSubState == WAIT_SECOND_TILE) {
-                                if (grid.getTileValue(r, c) > 0) {
-                                    selectedR2 = r; selectedC2 = c;
-                                    if (grid.useSwap(selectedR1, selectedC1, selectedR2, selectedC2)) {
+                            else if (currentSubState == WAIT_SECOND_TILE)
+                            {
+                                if (grid.getTileValue(r, c) > 0)
+                                {
+                                    selectedR2 = r;
+                                    selectedC2 = c;
+
+                                    if (grid.useSwap(selectedR1, selectedC1, selectedR2, selectedC2))
+                                    {
                                         updatePowerCountsTexts();
                                     }
+
+                                    // === Reset sau khi dùng xong ===
+                                    selectedR1 = selectedC1 = selectedR2 = selectedC2 = -1;
                                     currentSubState = PLAYING;
                                     activePowerType = -1;
                                 }
                             }
-                            else if (currentSubState == WAIT_DELETE_TILE) {
-                                if (grid.getTileValue(r, c) > 0) {
-                                    if (grid.useDelete(r, c)) {
+                            else if (currentSubState == WAIT_DELETE_TILE)
+                            {
+                                if (grid.getTileValue(r, c) > 0)
+                                {
+                                    if (grid.useDelete(r, c))
+                                    {
                                         updatePowerCountsTexts();
                                     }
+
+                                    // Reset sau khi dùng xong 
+                                    selectedR1 = selectedC1 = selectedR2 = selectedC2 = -1;
                                     currentSubState = PLAYING;
                                     activePowerType = -1;
                                 }
