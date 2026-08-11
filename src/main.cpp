@@ -22,7 +22,10 @@ int main()
     sf::RenderWindow window(sf::VideoMode({ WIDTH, HEIGHT }), "2048", sf::Style::Close);
     window.setFramerateLimit(60);
     window.setVerticalSyncEnabled(true);
+
+    // ============================================================
     // FONT
+    // ============================================================
     sf::Font font;
     if (!font.openFromFile("assets/fonts/Super Kidpop.ttf"))
     {
@@ -30,17 +33,24 @@ int main()
         return -1;
     }
 
+    // ============================================================
     // AUDIO
+    // ============================================================
     AudioManager audio;
     audio.playLoadingMusic(true);
     audio.setMusicVolume(50.f);
     audio.setSfxVolume(50.f);
 
+    // ============================================================
+    // THEME
+    // ============================================================
     ThemeType currentTheme = THEME_GREEN;
     ThemeType pendingTheme = THEME_GREEN;
     bool returnToSettingsAfterLoading = false;
 
+    // ============================================================
     // CÁC MÀN HÌNH
+    // ============================================================
     LoadingScreen loading(font, (float)WIDTH, (float)HEIGHT,
         "assets/images/green/backgrounds/loading/bg.png");
 
@@ -49,13 +59,11 @@ int main()
     Challenge     challenge(font, (float)WIDTH, (float)HEIGHT);
     HowToPlay     howToPlay(font, (float)WIDTH, (float)HEIGHT);
     SettingsPopup settings(font, (float)WIDTH, (float)HEIGHT);
-
-    // Màn hình loading khi đổi theme (dùng 3 PNG: loading_bg + track + fill)
     ThemeLoading  themeLoading(font, (float)WIDTH, (float)HEIGHT);
 
     sf::Clock frameClock;
 
-    // Áp dụng theme ban đầu cho tất cả màn hình
+    // Áp dụng theme ban đầu
     mainMenu.setTheme(currentTheme);
     modeSelect.setTheme(currentTheme);
     challenge.setTheme(currentTheme);
@@ -65,14 +73,16 @@ int main()
     std::unique_ptr<Gameplay> gameplay = nullptr;
     GameState currentState = GameState::LOADING;
 
+    // ============================================================
     // GAME LOOP
+    // ============================================================
     while (window.isOpen())
     {
-        // Tính delta time mỗi frame
         float dt = frameClock.restart().asSeconds();
 
-        // 1. ĐANG THEME-LOADING
-        //    Chỉ update + render loading, bỏ qua toàn bộ event/update/render game
+        // --------------------------------------------------------
+        // 1. ĐANG THEME-LOADING → chỉ update + render loading
+        // --------------------------------------------------------
         if (themeLoading.isActive())
         {
             themeLoading.update(dt);
@@ -80,27 +90,25 @@ int main()
             window.clear();
             themeLoading.render(window);
             window.display();
-
-            continue; // skip hết phần còn lại của vòng lặp
+            continue;
         }
 
-        // 2. VỪA XONG LOADING → APPLY THEME MỚI + MỞ LẠI SETTINGS NẾU CẦN
+        // --------------------------------------------------------
+        // 2. VỪA XONG LOADING → APPLY THEME + MỞ LẠI SETTINGS
+        // --------------------------------------------------------
         if (themeLoading.isFinished())
         {
-            // Chính thức đổi theme
             currentTheme = pendingTheme;
 
-            // Áp dụng theme mới cho tất cả màn hình
             mainMenu.setTheme(currentTheme);
             modeSelect.setTheme(currentTheme);
             challenge.setTheme(currentTheme);
             howToPlay.setTheme(currentTheme);
-            settings.setTheme(currentTheme);          // Settings nhận theme mới
+            settings.setTheme(currentTheme);
 
             if (gameplay)
                 gameplay->setTheme(currentTheme);
 
-            // Nếu lúc nãy đang ở Settings thì mở lại popup
             if (returnToSettingsAfterLoading)
             {
                 settings.open();
@@ -108,42 +116,37 @@ int main()
             }
         }
 
+        // --------------------------------------------------------
         // EVENT
+        // --------------------------------------------------------
         while (const std::optional event = window.pollEvent())
         {
             if (event->is<sf::Event::Closed>())
                 window.close();
 
-            // SETTINGS
+            // ---------- SETTINGS ----------
             if (settings.isOpen())
             {
                 settings.handleEvent(*event, window);
 
-                // Cập nhật volume realtime
                 audio.setMusicVolume(settings.getMusicVolume());
                 audio.setSfxVolume(settings.getSfxVolume());
 
-                // Người dùng vừa chọn theme mới → bắt đầu loading ngay
                 if (settings.hasThemeChangeRequest())
                 {
                     ThemeType newTheme = settings.getRequestedTheme();
 
-                    // Đánh dấu sẽ mở lại Settings sau khi loading xong
                     returnToSettingsAfterLoading = true;
-
-                    // Đóng Settings tạm thời
                     settings.close();
                     settings.clearThemeChangeRequest();
 
-                    // Lưu theme mới và chạy loading
                     pendingTheme = newTheme;
-                    themeLoading.start(newTheme, 1.2f); // 1.2 giây
+                    themeLoading.start(newTheme, 1.2f);
                 }
-
-                continue; // đang mở Settings → không xử lý event màn hình khác
+                continue;
             }
 
-            // CÁC MÀN HÌNH KHÁC 
+            // ---------- CÁC MÀN HÌNH KHÁC ----------
             switch (currentState)
             {
             case GameState::LOADING:
@@ -182,7 +185,7 @@ int main()
                 else if (opt == MenuOption::OPT_SETTINGS)
                 {
                     audio.playSound("click");
-                    settings.setTheme(currentTheme); // hiển thị đúng theme đang dùng
+                    settings.setTheme(currentTheme);
                     settings.open();
                 }
                 break;
@@ -224,14 +227,12 @@ int main()
                     audio.playSound("click");
                     ChapterData data = challenge.getSelectedChapterData();
 
-                    int undoCnt = 2, swapCnt = 1, deleteCnt = 1;
-
                     gameplay = std::make_unique<Gameplay>(
                         font, (float)WIDTH, (float)HEIGHT,
                         data.gridSize, true,
                         data.moveLimit,
                         data.targetTile,
-                        undoCnt, swapCnt, deleteCnt,
+                        data.undoCount, data.swapCount, data.deleteCount,
                         &audio
                     );
                     gameplay->setTheme(currentTheme);
@@ -263,9 +264,10 @@ int main()
                 {
                     GameState next = gameplay->handleEvent(*event, window);
 
-                    if (gameplay->hasWon())
+                    // Người chơi bấm Quit trên popup You Win
+                    if (next == GameState::CHALLENGE)
                     {
-                        audio.playSound("win");
+                        audio.playSound("click");
                         challenge.unlockNextChapter();
                         currentState = GameState::CHALLENGE;
                         gameplay.reset();
@@ -277,7 +279,7 @@ int main()
                     }
                     else if (next != GameState::GAMEPLAY)
                     {
-                        if (next == GameState::MAIN_MENU || next == GameState::CHALLENGE)
+                        if (next == GameState::MAIN_MENU)
                             audio.playSound("click");
                         currentState = next;
                         gameplay.reset();
@@ -290,7 +292,9 @@ int main()
             }
         }
 
+        // --------------------------------------------------------
         // UPDATE
+        // --------------------------------------------------------
         switch (currentState)
         {
         case GameState::LOADING:      loading.update();                 break;
@@ -307,7 +311,9 @@ int main()
         if (settings.isOpen())
             settings.update(window);
 
+        // --------------------------------------------------------
         // RENDER
+        // --------------------------------------------------------
         window.clear();
 
         switch (currentState)
@@ -321,7 +327,7 @@ int main()
             break;
 
         case GameState::MODE_SELECT:
-            mainMenu.render(window);      // vẽ nền menu
+            mainMenu.render(window);
             modeSelect.render(window);
             break;
 
@@ -341,7 +347,7 @@ int main()
             break;
         }
 
-        // Settings luôn vẽ trên cùng nếu đang mở
+        // Settings luôn vẽ trên cùng
         if (settings.isOpen())
             settings.render(window);
 
