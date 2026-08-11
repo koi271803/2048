@@ -75,10 +75,15 @@ private:
     ThemeType currentTheme;
     bool isGameOverState;
     bool hasWonFlag;
+    bool isWinState = false;
 
     // Audio
     AudioManager* audio;
-
+	// Popup Win
+    sf::Texture popupWinTex;
+    sf::Sprite  popupWinSprite;
+    Button* btnQuitWin = nullptr;
+	// Popup Game Over
     sf::RectangleShape dimOverlay;
     sf::Texture popupGameOverTex;
     sf::Sprite  popupGameOverSprite;
