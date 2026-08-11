@@ -18,7 +18,7 @@ Gameplay::Gameplay(const sf::Font& fontRef,
     grid(size),
     isChallengeMode(isChallenge),
     currentMoves(isChallenge ? startMovesParam : 0),
-    startMoves(startMovesParam),       
+    startMoves(startMovesParam),
     targetTile(target),
     currentMaxTile(0),
     initialUndoCount(undoCount),
@@ -43,6 +43,7 @@ Gameplay::Gameplay(const sf::Font& fontRef,
     settingsIconTexture(), settingsIconSprite(settingsIconTexture),
     popupGameOverTex(), popupGameOverSprite(popupGameOverTex),
     popupHomeTex(), popupHomeSprite(popupHomeTex),
+    popupWinTex(), popupWinSprite(popupWinTex),
     popupPowerConfirmTex(), popupPowerConfirmSprite(popupPowerConfirmTex),
 
     score10k(false), score15k(false), score25k(false), score40k(false), score60k(false),
@@ -58,6 +59,8 @@ Gameplay::Gameplay(const sf::Font& fontRef,
         windowWidth / 2.0f + 140.f, windowHeight / 2.0f + 75.f);
     btnQuit = new Button("assets/images/green/buttons/quit_lose.png", fontRef, "",
         windowWidth / 2.0f - 140.f, windowHeight / 2.0f + 75.f);
+    btnQuitWin = new Button(
+        "assets/images/green/buttons/quit.png", fontRef, "",windowWidth / 2.0f,windowHeight / 2.0f + 95.f);
 
     btnYes = new Button("assets/images/green/buttons/yes.png", fontRef, "",
         windowWidth / 2.0f + 120.f, windowHeight / 2.0f + 100.f);
@@ -154,6 +157,7 @@ Gameplay::~Gameplay() {
     delete btnYes;
     delete btnNo;
     delete btnClosePopup;
+    delete btnQuitWin;
 }
 // 2. SPAWN TEXT +1 POWER
 void Gameplay::spawnPowerText(const std::string& content)
@@ -168,8 +172,8 @@ void Gameplay::spawnPowerText(const std::string& content)
     floatingTexts.emplace_back(font, content, pos);
 
     auto& t = floatingTexts.back().text;
-    t.setCharacterSize(32);        
-    t.setOutlineThickness(0.f);     
+    t.setCharacterSize(32);
+    t.setOutlineThickness(0.f);
     t.setOutlineColor(sf::Color::Transparent);
 }
 
@@ -191,7 +195,7 @@ void Gameplay::checkMilestones() {
     }
 
     int score = grid.getScore();
-	// Popup mốc điêm 10k, 15k, 25k, 40k, 60k
+    // Popup mốc điêm 10k, 15k, 25k, 40k, 60k
     auto tryScoreMilestone = [&](bool& flag, int threshold) {
         if (!flag && score >= threshold && milestoneTextures.count(threshold) > 0) {
             flag = true;
@@ -209,21 +213,48 @@ void Gameplay::checkMilestones() {
     tryScoreMilestone(score60k, 60000);
 }
 
-// 4. CHECK WIN (Challenge only)
-void Gameplay::checkWin() {
-    if (!isChallengeMode || hasWonFlag || isGameOverState) return;
+void Gameplay::checkWin()
+{
+    if (!isChallengeMode || hasWonFlag || isGameOverState || isWinState)
+        return;
 
-    if (grid.getMaxTile() >= targetTile) {
+    if (grid.getMaxTile() >= targetTile)
+    {
         hasWonFlag = true;
-        // Phat SFX win 
+        isWinState = true;
+
         if (audio) audio->playSound("win");
-        // Hien tai main se bat hasWon() va unlock chapter
+
+        std::string folder = getThemeFolder(currentTheme);
+        std::string popPath = "assets/images/" + folder + "/popups/gameplay/";
+        std::string btnPath = "assets/images/" + folder + "/buttons/";
+
+        // Load ảnh You Win
+        if (popupWinTex.loadFromFile(popPath + "win.png"))
+        {
+            popupWinTex.setSmooth(true);
+            popupWinSprite.setTexture(popupWinTex, true);
+
+            sf::FloatRect bounds = popupWinSprite.getLocalBounds();
+            popupWinSprite.setOrigin(sf::Vector2f(
+                bounds.position.x + bounds.size.x / 2.f,
+                bounds.position.y + bounds.size.y / 2.f));
+            popupWinSprite.setPosition(sf::Vector2f(960.f, 540.f));
+        }
+        else
+        {
+            std::cout << "[Gameplay] Khong load duoc win.png\n";
+        }
+
+        // Nạp nút Quit xanh theo theme
+        if (btnQuitWin)
+            btnQuitWin->reloadTexture(btnPath + "quit.png");  // ← tên file nút xanh của bạn
     }
 }
-
-// 5. CHECK GAME OVER
-void Gameplay::checkGameOver() {
-    if (isGameOverState || hasWonFlag) return;
+void Gameplay::checkGameOver()
+{
+    if (isGameOverState || hasWonFlag || isWinState)
+        return;
 
     std::string folder = getThemeFolder(currentTheme);
     std::string popPath = "assets/images/" + folder + "/popups/gameplay/";
@@ -232,36 +263,45 @@ void Gameplay::checkGameOver() {
     bool lose = false;
 
     // Hết bước (Challenge)
-    if (isChallengeMode && currentMoves <= 0) {
+    if (isChallengeMode && currentMoves <= 0)
         lose = true;
-    }
     // Kẹt bàn cờ
-    else if (grid.isGameOver()) {
+    else if (grid.isGameOver())
         lose = true;
-    }
 
-    if (lose) {
+    if (lose)
+    {
         isGameOverState = true;
         if (audio) audio->playSound("lose");
-        (void)popupGameOverTex.loadFromFile(popPath + "lose.png");
-        popupGameOverTex.setSmooth(true);
-        popupGameOverSprite.setTexture(popupGameOverTex, true);
 
-        sf::FloatRect bounds = popupGameOverSprite.getLocalBounds();
-        popupGameOverSprite.setOrigin(sf::Vector2f(
-            bounds.position.x + bounds.size.x / 2.f,
-            bounds.position.y + bounds.size.y / 2.f));
-        popupGameOverSprite.setPosition(sf::Vector2f(960.f, 540.f));
+        if (popupGameOverTex.loadFromFile(popPath + "lose.png"))
+        {
+            popupGameOverTex.setSmooth(true);
+            popupGameOverSprite.setTexture(popupGameOverTex, true);
+
+            sf::FloatRect bounds = popupGameOverSprite.getLocalBounds();
+            popupGameOverSprite.setOrigin(sf::Vector2f(
+                bounds.position.x + bounds.size.x / 2.f,
+                bounds.position.y + bounds.size.y / 2.f));
+            popupGameOverSprite.setPosition(sf::Vector2f(960.f, 540.f));
+        }
 
         btnReplay->reloadTexture(btnPath + "restart.png");
         btnQuit->reloadTexture(btnPath + "quit_lose.png");
     }
 }
-
 // 6. HANDLE EVENT
 GameState Gameplay::handleEvent(const sf::Event& event, sf::RenderWindow& window) {
     sf::Vector2f mousePos = window.mapPixelToCoords(sf::Mouse::getPosition(window));
-
+    if (isWinState)
+    {
+        if (btnQuitWin && btnQuitWin->isClicked(event, mousePos))
+        {
+            if (audio) audio->playSound("click");
+            return GameState::CHALLENGE;   // main sẽ unlock chapter + quay về Challenge
+        }
+        return GameState::GAMEPLAY;        // vẫn ở lại để hiện popup
+    }
     // GAME OVER 
     if (isGameOverState) {
         if (btnReplay->isClicked(event, mousePos)) {
@@ -487,7 +527,7 @@ GameState Gameplay::handleEvent(const sf::Event& event, sf::RenderWindow& window
         bool moved = false;
 
         if (!isChallengeMode || currentMoves > 0) {
-			// Luôn lưu điểm trước khi move để xác định có merge hay không
+            // Luôn lưu điểm trước khi move để xác định có merge hay không
             const int scoreBefore = grid.getScore();
             const int maxBefore = grid.getMaxTile();
 
@@ -535,10 +575,10 @@ GameState Gameplay::handleEvent(const sf::Event& event, sf::RenderWindow& window
                     }
                 }
 
-               // THƯỞNG THÊM POWERS KHI GỌP ĐƯỢC 128 / 256 / 512
+                // THƯỞNG THÊM POWERS KHI GỌP ĐƯỢC 128 / 256 / 512
                 for (int val : merged) {
                     if (val == 128) {
-						// fFree mode hoặc Challenge có mở khóa powers -> thưởng
+                        // fFree mode hoặc Challenge có mở khóa powers -> thưởng
                         if (!isChallengeMode || initialUndoCount > 0) {
                             grid.addUndo(1);
                             spawnPowerText("+1 Undo");
@@ -647,7 +687,7 @@ void Gameplay::update(sf::RenderWindow& window) {
     // Floating Popup 
     for (int i = static_cast<int>(floatingPopups.size()) - 1; i >= 0; --i) {
         floatingPopups[i].sprite.move(sf::Vector2f(0.f, -1.5f));
-        floatingPopups[i].alpha -= 1.6f;          
+        floatingPopups[i].alpha -= 1.6f;
 
         if (floatingPopups[i].alpha <= 0.f) {
             floatingPopups.erase(floatingPopups.begin() + i);
@@ -772,7 +812,14 @@ void Gameplay::render(sf::RenderWindow& window) const {
         btnNo->render(window);
         btnClosePopup->render(window);
     }
-
+    // You Win popup
+    if (isWinState)
+    {
+        window.draw(dimOverlay);
+        window.draw(popupWinSprite);
+        if (btnQuitWin)
+            btnQuitWin->render(window);
+    }
     // Game Over: 
     if (isGameOverState) {
         window.draw(dimOverlay);
