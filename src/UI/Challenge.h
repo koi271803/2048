@@ -52,11 +52,12 @@ public:
 
     void setTheme(ThemeType theme);
     void unlockNextChapter();            // Gọi khi thắng để mở khóa màn tiếp
-
+    void setHighestUnlocked(int value);
+    int  getHighestUnlocked() const { return highestUnlockedChapter; }
     GameState handleEvent(const sf::Event& event, sf::RenderWindow& window);
     void update(sf::RenderWindow& window);
     void render(sf::RenderWindow& window) const;
-
+    void closePopup() { isPopupOpen = false; }
     int getSelectedChapter() const { return selectedChapter; }
     ChapterData getSelectedChapterData() const { return chapters[selectedChapter]; }
 };
