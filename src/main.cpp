@@ -12,6 +12,7 @@
 #include "Gameplay.h"
 #include "Settings.h"
 #include "AudioManager.h"
+#include "SaveManager.h"
 
 int main()
 {
@@ -23,9 +24,7 @@ int main()
     window.setFramerateLimit(60);
     window.setVerticalSyncEnabled(true);
 
-    // ============================================================
     // FONT
-    // ============================================================
     sf::Font font;
     if (!font.openFromFile("assets/fonts/Super Kidpop.ttf"))
     {
@@ -33,24 +32,28 @@ int main()
         return -1;
     }
 
-    // ============================================================
     // AUDIO
-    // ============================================================
     AudioManager audio;
     audio.playLoadingMusic(true);
     audio.setMusicVolume(50.f);
     audio.setSfxVolume(50.f);
 
-    // ============================================================
-    // THEME
-    // ============================================================
-    ThemeType currentTheme = THEME_GREEN;
-    ThemeType pendingTheme = THEME_GREEN;
+    // LOAD TIẾN TRÌNH ĐÃ LƯU
+    SaveData saveData;
+    SaveManager::load(saveData);
+
+    ThemeType currentTheme = saveData.theme;
+    ThemeType pendingTheme = saveData.theme;
     bool returnToSettingsAfterLoading = false;
 
-    // ============================================================
+    // Áp dụng volume đã lưu
+    audio.setMusicVolume(saveData.musicVolume);
+    audio.setSfxVolume(saveData.sfxVolume);
+
+    // Áp dụng best score đã lưu
+    Gameplay::setBestScore(saveData.bestScore);
+
     // CÁC MÀN HÌNH
-    // ============================================================
     LoadingScreen loading(font, (float)WIDTH, (float)HEIGHT,
         "assets/images/green/backgrounds/loading/bg.png");
 
@@ -61,9 +64,12 @@ int main()
     SettingsPopup settings(font, (float)WIDTH, (float)HEIGHT);
     ThemeLoading  themeLoading(font, (float)WIDTH, (float)HEIGHT);
 
+    // Áp dụng chapter đã mở khóa
+    challenge.setHighestUnlocked(saveData.highestUnlockedChapter);
+
     sf::Clock frameClock;
 
-    // Áp dụng theme ban đầu
+    // Áp dụng theme đã lưu
     mainMenu.setTheme(currentTheme);
     modeSelect.setTheme(currentTheme);
     challenge.setTheme(currentTheme);
@@ -73,16 +79,27 @@ int main()
     std::unique_ptr<Gameplay> gameplay = nullptr;
     GameState currentState = GameState::LOADING;
 
-    // ============================================================
+    // HÀM LƯU TIẾN TRÌNH (gọi khi cần)
+
+    auto saveProgress = [&]()
+        {
+            SaveData data;
+            data.bestScore = Gameplay::getBestScore();
+            data.highestUnlockedChapter = challenge.getHighestUnlocked();
+            data.theme = currentTheme;
+            data.musicVolume = audio.getMusicVolume();
+            data.sfxVolume = audio.getSfxVolume();
+            SaveManager::save(data);
+        };
+
     // GAME LOOP
-    // ============================================================
     while (window.isOpen())
     {
         float dt = frameClock.restart().asSeconds();
 
-        // --------------------------------------------------------
+    
         // 1. ĐANG THEME-LOADING → chỉ update + render loading
-        // --------------------------------------------------------
+
         if (themeLoading.isActive())
         {
             themeLoading.update(dt);
@@ -93,9 +110,7 @@ int main()
             continue;
         }
 
-        // --------------------------------------------------------
         // 2. VỪA XONG LOADING → APPLY THEME + MỞ LẠI SETTINGS
-        // --------------------------------------------------------
         if (themeLoading.isFinished())
         {
             currentTheme = pendingTheme;
@@ -114,17 +129,22 @@ int main()
                 settings.open();
                 returnToSettingsAfterLoading = false;
             }
+
+            themeLoading.clearFinished();
+            saveProgress();   // luu theme moi
         }
 
-        // --------------------------------------------------------
+
         // EVENT
-        // --------------------------------------------------------
         while (const std::optional event = window.pollEvent())
         {
             if (event->is<sf::Event::Closed>())
+            {
+                saveProgress();   // luu truoc khi thoat
                 window.close();
+            }
 
-            // ---------- SETTINGS ----------
+            // SETTINGS
             if (settings.isOpen())
             {
                 settings.handleEvent(*event, window);
@@ -146,7 +166,7 @@ int main()
                 continue;
             }
 
-            // ---------- CÁC MÀN HÌNH KHÁC ----------
+            // CÁC MÀN HÌNH KHÁC 
             switch (currentState)
             {
             case GameState::LOADING:
@@ -264,11 +284,17 @@ int main()
                 {
                     GameState next = gameplay->handleEvent(*event, window);
 
-                    // Người chơi bấm Quit trên popup You Win
+                    // Nguoi choi bam Quit tren popup You Win
                     if (next == GameState::CHALLENGE)
                     {
+                        if (gameplay->hasWon())
+                        {
+                            challenge.unlockNextChapter();
+                            saveProgress();   // luu chapter moi mo
+
+                        }
+                        challenge.closePopup();
                         audio.playSound("click");
-                        challenge.unlockNextChapter();
                         currentState = GameState::CHALLENGE;
                         gameplay.reset();
                     }
@@ -279,6 +305,9 @@ int main()
                     }
                     else if (next != GameState::GAMEPLAY)
                     {
+                        // Thoat ve Main Menu / Challenge → luu best score
+                        saveProgress();
+
                         if (next == GameState::MAIN_MENU)
                             audio.playSound("click");
                         currentState = next;
@@ -292,9 +321,7 @@ int main()
             }
         }
 
-        // --------------------------------------------------------
         // UPDATE
-        // --------------------------------------------------------
         switch (currentState)
         {
         case GameState::LOADING:      loading.update();                 break;
@@ -311,9 +338,7 @@ int main()
         if (settings.isOpen())
             settings.update(window);
 
-        // --------------------------------------------------------
         // RENDER
-        // --------------------------------------------------------
         window.clear();
 
         switch (currentState)
@@ -354,5 +379,7 @@ int main()
         window.display();
     }
 
+    // Luu lan cuoi truoc khi thoat
+    saveProgress();
     return 0;
 }
